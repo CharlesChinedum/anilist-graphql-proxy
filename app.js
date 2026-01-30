@@ -47,6 +47,13 @@ const MediaType = new graphql.GraphQLObjectType({
   },
 });
 
+const PageType = new graphql.GraphQLObjectType({
+  name: "Page",
+  fields: {
+    media: { type: new graphql.GraphQLList(MediaType) },
+  },
+});
+
 const QueryRoot = new graphql.GraphQLObjectType({
   name: "Query",
   fields: () => ({
@@ -67,6 +74,7 @@ const QueryRoot = new graphql.GraphQLObjectType({
         const query = `
           query AnimeQuery($episodes: Int) {
             Media(episodes: $episodes) {
+              id
               episodes
               seasonInt
               coverImage {
@@ -74,6 +82,7 @@ const QueryRoot = new graphql.GraphQLObjectType({
               }
               title {
                 english
+                romaji
               }
               genres
               startDate {
@@ -114,9 +123,89 @@ const QueryRoot = new graphql.GraphQLObjectType({
           }
 
           console.log(
-            `✅ Successfully fetched anime: ${json.data?.Media?.title?.english || "Unknown"}`,
+            `✅ Successfully fetched anime: ${json.data?.Media?.title?.english || json.data?.Media?.title?.romaji || "Unknown"}`,
           );
           return json.data.Media;
+        } catch (error) {
+          console.error(`❌ Error fetching from AniList:`, error.message);
+          console.error(`Stack trace:`, error.stack);
+          throw error;
+        }
+      },
+    },
+    Page: {
+      type: PageType,
+      args: {
+        page: { type: graphql.GraphQLInt },
+        perPage: { type: graphql.GraphQLInt },
+        episodes: { type: graphql.GraphQLInt },
+      },
+      resolve: async (parent, args) => {
+        const timestamp = new Date().toISOString();
+        console.log(`[${timestamp}] 📄 Page query initiated`);
+        console.log(`Arguments:`, JSON.stringify(args, null, 2));
+
+        const query = `
+          query AnimeQuery($page: Int, $perPage: Int, $episodes: Int) {
+            Page(page: $page, perPage: $perPage) {
+              media(type: ANIME, episodes: $episodes) {
+                id
+                title {
+                  english
+                  romaji
+                }
+                coverImage {
+                  large
+                }
+                episodes
+                genres
+                startDate {
+                  year
+                }
+                description
+              }
+            }
+          }
+        `;
+
+        const variables = {
+          page: args.page || 1,
+          perPage: args.perPage || 20,
+          episodes: args.episodes,
+        };
+
+        try {
+          console.log(`📡 Fetching page from AniList API...`);
+          const startTime = Date.now();
+
+          const response = await fetch("https://graphql.anilist.co", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Accept: "application/json",
+            },
+            body: JSON.stringify({ query, variables }),
+          });
+
+          const duration = Date.now() - startTime;
+          console.log(`⏱️  AniList API responded in ${duration}ms`);
+          console.log(`Status: ${response.status} ${response.statusText}`);
+
+          const json = await response.json();
+
+          if (json.errors) {
+            console.error(
+              `❌ GraphQL Errors:`,
+              JSON.stringify(json.errors, null, 2),
+            );
+            throw new Error(json.errors[0].message);
+          }
+
+          const mediaCount = json.data?.Page?.media?.length || 0;
+          console.log(
+            `✅ Successfully fetched ${mediaCount} anime from page ${args.page || 1}`,
+          );
+          return json.data.Page;
         } catch (error) {
           console.error(`❌ Error fetching from AniList:`, error.message);
           console.error(`Stack trace:`, error.stack);
