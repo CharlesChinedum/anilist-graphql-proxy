@@ -31,12 +31,14 @@ const TitleType = new graphql.GraphQLObjectType({
   name: "Title",
   fields: {
     english: { type: graphql.GraphQLString },
+    romaji: { type: graphql.GraphQLString },
   },
 });
 
 const MediaType = new graphql.GraphQLObjectType({
   name: "Media",
   fields: {
+    id: { type: graphql.GraphQLInt },
     episodes: { type: graphql.GraphQLInt },
     seasonInt: { type: graphql.GraphQLInt },
     coverImage: { type: CoverImageType },
